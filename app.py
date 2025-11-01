@@ -32,7 +32,7 @@ dataset_option = st.radio(
 )
 
 if dataset_option == "Default Dataset":
-    df = pd.read_csv("data/soil_data.csv")
+    df = pd.read_csv("data/Crop_recommendation.csv")
     st.success("✅ Default dataset loaded successfully!")
 else:
     uploaded_file = st.file_uploader("📥 Upload your dataset (CSV format)", type=["csv"])
@@ -167,4 +167,5 @@ if st.button("🌿 Suggest Best Crop"):
         crop_name = str(prediction)
 
     st.success(f"🌾 Based on the given soil data, the recommended crop is: **{crop_name.upper()}**")
+
 
