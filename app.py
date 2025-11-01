@@ -1,150 +1,169 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import pickle
+import os
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# ----------------------------
-# 🌾 PAGE CONFIG
-# ----------------------------
-st.set_page_config(page_title="Smart Crop Recommendation", page_icon="🌱", layout="centered")
+# --------------------------------------
+# App Configuration
+# --------------------------------------
+st.set_page_config(page_title="Soil Classification & Crop Suggestion", page_icon="🌾", layout="wide")
 
-st.title("🌾 Smart Crop Recommendation System for Farmers")
+st.title("🌱 Soil Classification & Crop Suggestion App")
 st.markdown("""
-This app helps farmers find the **best crop to grow** 🌱  
-based on their **soil nutrients**, **weather conditions**, and **rainfall** data.
-
-👉 Just upload a **Kaggle Crop Recommendation Dataset (CSV)** and enter your soil values.
+Welcome to the **AI-Powered Soil & Crop Recommendation System**!  
+Use this app to:
+- 🧠 Analyze soil nutrients (NPK, pH, moisture, etc.)
+- 🌾 Predict the most suitable crop for your soil
+- 📈 Help farmers boost yield using AI-driven insights
 """)
 
-# ----------------------------
-# 📘 LEARN MORE SECTION
-# ----------------------------
-with st.expander("🌿 What do these terms mean? (Tap to Learn More)"):
-    st.markdown("""
-    - **Nitrogen (N):** 🧪 Helps plants grow green and leafy.  
-      Too little → yellow leaves; too much → weak stems.
-    - **Phosphorus (P):** 🌿 Builds strong roots and more flowers.
-    - **Potassium (K):** 🍎 Helps plants produce healthy fruits and resist disease.
-    - **Temperature (°C):** 🌤️ Affects plant growth and yield.
-    - **Humidity (%):** 💧 Moisture in the air — important for seed growth.
-    - **pH:** ⚖️ Soil acidity level (ideal: 6–7).
-    - **Rainfall (mm):** ☔ Water availability for crops.
-    """)
+# --------------------------------------
+# Step 1: Dataset Selection
+# --------------------------------------
+st.header("📂 Choose Dataset")
 
-# ----------------------------
-# 📤 UPLOAD DATASET
-# ----------------------------
-uploaded_file = st.file_uploader("📂 Upload your Crop Dataset (CSV file)", type=["csv"])
+dataset_option = st.radio(
+    "Select dataset source:",
+    ("Default Dataset", "Upload Your Own Dataset")
+)
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.success("✅ Dataset uploaded successfully!")
-    st.write("### 📊 Dataset Preview")
-    st.dataframe(df.head())
-
-    # Detect feature columns
-    possible_features = ['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']
-    feature_cols = [col for col in possible_features if col in df.columns]
-    target_col = 'label' if 'label' in df.columns else None
-
-    if not feature_cols or not target_col:
-        st.error("⚠️ Dataset must contain columns: N, P, K, temperature, humidity, ph, rainfall, and label.")
-    else:
-        st.info(f"✅ Features: {', '.join(feature_cols)} | Target: {target_col}")
-
-        # ----------------------------
-        # 🧠 TRAIN MODEL
-        # ----------------------------
-        X = df[feature_cols]
-        y = df[target_col]
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        model = RandomForestClassifier(n_estimators=150, random_state=42)
-        model.fit(X_train_scaled, y_train)
-        acc = model.score(X_test_scaled, y_test)
-
-        st.success(f"🌱 Model trained successfully with accuracy: **{acc*100:.2f}%**")
-
-        # ----------------------------
-        # 📊 MODEL EVALUATION
-        # ----------------------------
-        y_pred = model.predict(X_test_scaled)
-        cm = confusion_matrix(y_test, y_pred)
-        report = classification_report(y_test, y_pred, output_dict=True)
-        report_df = pd.DataFrame(report).transpose()
-
-        st.subheader("📈 Model Evaluation Metrics")
-        fig_cm, ax_cm = plt.subplots(figsize=(8, 5))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", xticklabels=model.classes_, yticklabels=model.classes_)
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
-        st.pyplot(fig_cm)
-        st.dataframe(report_df.style.background_gradient(cmap="Greens"))
-
-        # ----------------------------
-        # 🌿 FARMER-FRIENDLY INPUTS
-        # ----------------------------
-        st.markdown("### 🌾 Enter Your Soil and Weather Values")
-
-        feature_descriptions = {
-            "N": ("Nitrogen (N)", "🧪 Helps leaves grow green and healthy. (Range: 0–140)"),
-            "P": ("Phosphorus (P)", "🌿 Helps strong roots and flowering. (Range: 5–145)"),
-            "K": ("Potassium (K)", "🍎 Helps fruits and plant strength. (Range: 5–205)"),
-            "temperature": ("Temperature (°C)", "🌤️ Average temperature of your area."),
-            "humidity": ("Humidity (%)", "💧 Moisture in air — affects growth."),
-            "ph": ("Soil pH", "⚖️ Ideal between 6.0 and 7.5 for most crops."),
-            "rainfall": ("Rainfall (mm)", "☔ Average seasonal rainfall.")
-        }
-
-        user_inputs = {}
-        for col in feature_cols:
-            label, help_text = feature_descriptions.get(col, (col, ""))
-            user_inputs[col] = st.number_input(
-                f"{label}",
-                min_value=float(df[col].min()),
-                max_value=float(df[col].max()),
-                value=float(df[col].mean()),
-                help=help_text
-            )
-
-        # ----------------------------
-        # 🌾 PREDICTION
-        # ----------------------------
-        if st.button("🔍 Suggest the Best Crop"):
-            input_data = np.array([[user_inputs[col] for col in feature_cols]])
-            scaled_input = scaler.transform(input_data)
-            prediction = model.predict(scaled_input)[0]
-
-            st.success(f"🌾 Based on your soil and weather conditions, you should grow: **{prediction.upper()}**")
-
-            st.markdown("""
-            ### 🌱 Recommendation Summary:
-            - ✅ Soil nutrients are suitable for this crop.
-            - 💧 Ensure proper watering based on rainfall.
-            - 🌤️ Temperature and pH are favorable for good yield.
-            - 📈 Maintain these levels for better productivity.
-            """)
-
-            # Visualization
-            st.subheader("📊 Your Soil Condition Overview")
-            fig, ax = plt.subplots()
-            ax.bar(feature_cols, [user_inputs[col] for col in feature_cols], color="green", alpha=0.7)
-            ax.set_ylabel("Value")
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-
+if dataset_option == "Default Dataset":
+    df = pd.read_csv("data/Crop_recommendation.csv")
+    st.success("✅ Default dataset loaded successfully!")
 else:
-    st.info("⬆️ Upload a dataset to start using the system.")
+    uploaded_file = st.file_uploader("📥 Upload your dataset (CSV format)", type=["csv"])
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.success("✅ Uploaded dataset loaded successfully!")
+    else:
+        st.warning("⚠️ Please upload a dataset to continue.")
+        st.stop()
 
-st.markdown("---")
-st.caption("👨‍🌾 Developed by Shaik Mahaboob Vali | AI/ML Crop Suggestion App | Streamlit")
+# Clean column names
+df.columns = [c.strip().lower() for c in df.columns]
+
+# Rename common variations automatically
+rename_map = {
+    'nitrogen': 'n',
+    'phosphorus': 'p',
+    'potassium': 'k',
+    'temp': 'temperature',
+    'moisture': 'humidity',
+    'crop': 'label',
+    'crop_name': 'label'
+}
+df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns}, inplace=True)
+
+st.subheader("📊 Dataset Preview")
+st.dataframe(df.head())
+
+# --------------------------------------
+# Step 2: Model Training
+# --------------------------------------
+st.header("⚙️ Model Training ")
+
+# Detect label column
+possible_labels = ['label', 'crop', 'target']
+label_col = None
+for col in possible_labels:
+    if col in df.columns:
+        label_col = col
+        break
+
+if label_col is None:
+    st.error("❌ Could not find the target column (label/crop). Please check your dataset.")
+    st.stop()
+
+X = df.drop(columns=[label_col])
+y = df[label_col]
+
+# Encode categorical columns automatically
+categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
+if categorical_cols:
+    st.warning(f"⚠️ Encoding categorical columns: {', '.join(categorical_cols)}")
+    for col in categorical_cols:
+        le = LabelEncoder()
+        X[col] = le.fit_transform(X[col].astype(str))
+
+# Encode target labels if needed
+label_encoder = None
+if y.dtypes == 'object':
+    label_encoder = LabelEncoder()
+    y = label_encoder.fit_transform(y.astype(str))
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Feature scaling
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Train model
+model = RandomForestClassifier(random_state=42)
+model.fit(X_train_scaled, y_train)
+accuracy = model.score(X_test_scaled, y_test)
+
+st.success(f"✅ Model trained successfully with accuracy: **{accuracy * 100:.2f}%**")
+
+# Save model & scaler
+os.makedirs("models", exist_ok=True)
+with open("models/soil_model.pkl", "wb") as f:
+    pickle.dump(model, f)
+with open("models/scaler.pkl", "wb") as f:
+    pickle.dump(scaler, f)
+
+if label_encoder:
+    with open("models/label_encoder.pkl", "wb") as f:
+        pickle.dump(label_encoder, f)
+
+# --------------------------------------
+# Step 3: User Input for Prediction
+# --------------------------------------
+# --------------------------------------
+# Step 3: User Input for Prediction
+# --------------------------------------
+st.header("🌾 Enter Soil Values for Crop Suggestion")
+
+st.markdown("Enter your soil parameters below (hover over ❓ to understand each term):")
+
+# Helpful descriptions for each column
+param_help = {
+    "n": "Nitrogen (N): Supports leaf and stem growth. 🧪 Typical range: 0 – 140 mg/kg.",
+    "p": "Phosphorus (P): Promotes roots and flowers. 🧪 Typical range: 5 – 145 mg/kg.",
+    "k": "Potassium (K): Strengthens stems, improves disease resistance. 🧪 Typical range: 5 – 205 mg/kg.",
+    "temperature": "Temperature (°C): Average soil temperature. 🌡️ Ideal range: 15 – 35 °C.",
+    "humidity": "Humidity (%): Moisture content in soil or air. 💧 Ideal range: 40 – 90 %.",
+    "ph": "pH Level: Measures soil acidity/alkalinity. ⚖️ Ideal range: 5.5 – 7.5.",
+    "rainfall": "Rainfall (mm): Average rainfall during crop growth. 🌧️ Typical range: 20 – 300 mm."
+}
+
+numeric_cols = X.columns.tolist()
+user_data = {}
+
+col1, col2, col3 = st.columns(3)
+for i, col in enumerate(numeric_cols):
+    help_text = param_help.get(col.lower(), "Enter value for this feature.")
+    if i % 3 == 0:
+        user_data[col] = col1.number_input(f"{col.upper()}", value=float(df[col].mean()), help=help_text)
+    elif i % 3 == 1:
+        user_data[col] = col2.number_input(f"{col.upper()}", value=float(df[col].mean()), help=help_text)
+    else:
+        user_data[col] = col3.number_input(f"{col.upper()}", value=float(df[col].mean()), help=help_text)
+
+if st.button("🌿 Suggest Best Crop"):
+    input_data = np.array([list(user_data.values())]).reshape(1, -1)
+    input_scaled = scaler.transform(input_data)
+    prediction = model.predict(input_scaled)[0]
+
+    # Decode label if label encoder exists
+    if label_encoder:
+        crop_name = label_encoder.inverse_transform([prediction])[0]
+    else:
+        crop_name = str(prediction)
+
+    st.success(f"🌾 Based on the given soil data, the recommended crop is: **{crop_name.upper()}**")
