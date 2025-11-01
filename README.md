@@ -152,4 +152,4 @@ Dataset: Crop Recommendation Dataset on Kaggle
 Frameworks: Streamlit, Scikit-learn, Pandas, NumPy  
 
 📸 Preview
-
+![Smart_Crop_Recommendation_Preview](https://github.com/ValiShaik03/smart_crop_recommendation_system/blob/51ca2aa7419afbb6b2a9985a94d4401cb5f876ec/preview/preview1.png)
